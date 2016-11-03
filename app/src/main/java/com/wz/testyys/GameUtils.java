@@ -6,11 +6,6 @@ import android.util.DisplayMetrics;
 import java.io.DataOutputStream;
 import java.io.File;
 
-/**
- * 自动化工具类
- *
- * @author 詹子聪
- */
 public class GameUtils {
 
     /**
