@@ -1,4 +1,22 @@
 <resources>
     <string name="app_name">TestYys</string>
     <string name="app_description">开辅助</string>
+    <string name="select_mode">选择模式</string>
+    <string name="accessibility_service_label">1</string>
+    <string name="acc_description">我的辅助功能</string>
+    <string-array name="modes">
+        <item>只刷一次</item>
+        <item>只刷特定一区</item>
+        <item>换帐号换区刷</item>
+    </string-array>
+    <string-array name="servers">
+        <item>网易-心意相通</item>
+        <item>网易-相知相依</item>
+        <item>网易-情比金坚</item>
+        <item>网易-相伴相随</item>
+        <item>网易-结伴同游</item>
+        <item>网易-形影不离</item>
+        <item>网易-同心一意</item>
+        <item>网易-携手同心</item>
+    </string-array>
 </resources>
