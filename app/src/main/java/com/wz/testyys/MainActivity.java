@@ -130,6 +130,27 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        File file = new File(getCacheDir() + "/" + "result.txt");
+        if (file.exists()) {
+            String result = "";
+            try {
+                BufferedReader br = new BufferedReader(new FileReader(file));
+                String line;
+                while ((line = br.readLine()) != null) {
+                    result += line + "\n";
+                }
+                br.close();
+                mResult.setText(result);
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
@@ -143,7 +164,11 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "帐号为空,请填写帐号", Toast.LENGTH_SHORT).show();
             return;
         }
+        clearInfo();
         getSharedPreferences("Config", MODE_PRIVATE).edit().putString("ACCOUNTS", accounts).apply();
+        getSharedPreferences("Config", MODE_PRIVATE).edit().putString("ACCOUNT", accounts.split("\n")[0]).apply();
+
+        startService(new Intent(this, MyService.class));
         isServiceRunning = !isServiceRunning;
         if (isServiceRunning) {
             DisplayMetrics screenMetrix = ScreenUtils.getScreenMetrix(this);
@@ -167,6 +192,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         } else {
             Log.d("MainActivity", "填写了帐号,写入文件更新帐号");
+            clearInfo();
             String[] accountArr = accounts.split("\n");
             if (accountArr != null && accountArr.length != 0) {
                 System.out.println(accountArr[0]);
@@ -189,5 +215,28 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }
+    }
+
+    public void clearInfo() {
+        MyService.typeTextTimes = 0;
+        MyService.xuanquRunning = true;
+
+        GameService.mServerTimes = 0;
+        GameService.mMainGiveTimes = 0;
+        GameService.mChouKaTimes = 0;
+        GameService.mYardTimes = 0;
+        GameService.mMailTimes = 0;
+        GameService.mPickTimes = 0;
+        GameService.mOneWarThread = null;
+        GameService.mTwoWarThread = null;
+        GameService.mThreeWarThread = null;
+        GameService.mOneWarRunning = true;
+        GameService.mTwoWarRunning = true;
+        GameService.mThreeWarRunning = true;
+    }
+
+    public void stop(View view) {
+        Intent gameIntent = new Intent(this, GameService.class);
+        stopService(gameIntent);
     }
 }

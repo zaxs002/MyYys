@@ -19,10 +19,24 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.util.List;
 
 public class GameService extends Service {
 
+    //需要清除
+    public static int mServerTimes;
+    public static int mMainGiveTimes = 0;
+    public static int mChouKaTimes = 0;
+    public static int mYardTimes = 0;
+    public static int mMailTimes = 0;
+    public static int mPickTimes = 0;
+    public static Thread mOneWarThread;
+    public static Thread mTwoWarThread;
+    public static Thread mThreeWarThread;
+    public static boolean mOneWarRunning = true;
+    public static boolean mTwoWarRunning = true;
+    public static boolean mThreeWarRunning = true;
     private static Object[] mArmArchitecture = new Object[3];
     public int mAccountTimes = 0;
     private boolean isRunning = true;
@@ -30,26 +44,14 @@ public class GameService extends Service {
     private int mWidth;
     private int mHeight;
     private int sleppTime = 0;
-    private int mChouKaTimes = 0;
-    private int mYardTimes = 0;
-    private int mMailTimes = 0;
-    private int mPickTimes = 0;
-    private Thread mThreeWarThread;
-    private boolean mThreeWarRunning = true;
-    private boolean mTwoWarRunning = true;
-    private Thread mTwoWarThread;
-    private boolean mOneWarRunning = true;
-    private Thread mOneWarThread;
     private int mMode;
     private String mCurrentServer;
-    private Thread mMainThread;
-    private int mTime = 0;
+    public static Thread mMainThread;
     private String mCurrentAccount;
-    private String mCurrentActivity = "";
     private String mMAccounts;
     private int mHeroId;
     private String mHeroResult = "";
-    private int mServerTimes;
+    private boolean needExit = false;
 
     public GameService() {
     }
@@ -132,11 +134,11 @@ public class GameService extends Service {
         mWidth = getSharedPreferences("Game", MODE_PRIVATE).getInt("width", 0);
         mHeight = getSharedPreferences("Game", MODE_PRIVATE).getInt("height", 0);
         mMode = getSharedPreferences("Config", MODE_PRIVATE).getInt("MODE", MainActivity.MODE_ONCE);
-        mCurrentServer = getSharedPreferences("Config", MODE_PRIVATE).getString("SERVER", getResources().getStringArray(R.array.servers)[0]);
         final String[] servers = getResources().getStringArray(R.array.servers);
         if (servers != null && servers.length != 0) {
             mCurrentServer = servers[0];
         }
+        mCurrentServer = getSharedPreferences("Config", MODE_PRIVATE).getString("SERVER", getResources().getStringArray(R.array.servers)[0]);
         mMAccounts = getSharedPreferences("Config", MODE_PRIVATE).getString("ACCOUNTS", "");
         final String[] accountArr = mMAccounts.split("\n");
         if (accountArr != null && accountArr.length != 0) {
@@ -182,9 +184,43 @@ public class GameService extends Service {
                     String line;
                     while ((line = dis.readLine()) != null) {
 //                        Log.d("GameService", "line:" + line);
+                        if (line.contains(">>>OnBackground")) {
+                            Log.d("GameService", "出了应用");
+                        }
                         if (line.contains(">>>>OnAppResume")) {
                             Log.d("GameService", "回到应用内");
                             Log.d("GameService", "模式: " + MainActivity.MODE_ONCE);
+                            boolean isDone = getSharedPreferences("DONE", MODE_PRIVATE).getBoolean(mCurrentAccount + "--" + mCurrentServer, false);
+                            if (isDone) {
+                                Log.d("GameService", mCurrentAccount + "--" + mCurrentServer + " 已经刷完,准备换帐号换换区");
+                                int serverIndex = 0;
+                                for (int i = 0; i < servers.length; i++) {
+                                    if (servers[i] == mCurrentServer) {
+                                        serverIndex = i;
+                                        break;
+                                    }
+                                }
+                                //最后一个服务器了
+                                if (serverIndex == servers.length - 1) {
+                                    Log.d("GameService", "已经刷完全部");
+                                    break;
+                                }
+                                int accountIndex = 0;
+                                for (int i = 0; i < accountArr.length; i++) {
+                                    if (accountArr[i] == mCurrentAccount) {
+                                        accountIndex = i;
+                                        break;
+                                    }
+                                }
+                                //最后一个帐号了
+                                if (accountIndex == accountArr.length - 1) {
+                                    //换区
+                                    mCurrentServer = servers[serverIndex++];
+                                    mCurrentAccount = accountArr[0];
+                                } else {
+                                    mCurrentAccount = accountArr[accountIndex++];
+                                }
+                            }
                             switch (mMode) {
                                 case MainActivity.MODE_ONCE:
                                     Log.d("GameService", "开始登陆帐号 " + mCurrentAccount + " 到 " + mCurrentServer);
@@ -202,6 +238,7 @@ public class GameService extends Service {
                             Log.d("GameService", "开始选区");
                             GameUtils.exec("input tap " + 640.0 / 1440.0 * mWidth + " " + 403.0 / 900.0 * mHeight);
                         } else if (line.contains("openUI: ServerSelectPanel")) {
+                            needExit = false;
                             MyService.xuanquRunning = false;
                             Log.d("GameService", "进入选区页面");
                             switch (mCurrentServer) {
@@ -228,8 +265,8 @@ public class GameService extends Service {
                                 case "网易-相伴相随":
                                     //滑动选区(相伴相随)
                                     GameUtils.exec("input swipe " + 370.0 / 917 * mWidth + " " + 384.0 / 540 * mHeight
-                                            + " " + 370.0 / 917 * mWidth + " " + 220.0 / 540 * mHeight);
-                                    GameUtils.exec("input tap " + 370.0 / 917 * mWidth + " " + 220.0 / 540 * mHeight);
+                                            + " " + 370.0 / 917 * mWidth + " " + 250.0 / 540 * mHeight);
+                                    GameUtils.exec("input tap " + 539.0 / 1440.0 * mWidth + " " + 425.0 / 900.0 * mHeight);
                                     Log.d("GameService", "相伴相随");
                                     break;
                                 case "网易-结伴同游":
@@ -440,7 +477,7 @@ public class GameService extends Service {
                                         while (mOneWarRunning && !this.isInterrupted()) {
                                             Log.d("GameService", "第一个战斗线程运行中");
                                             try {
-                                                Thread.sleep(3000);
+                                                Thread.sleep(2000);
                                             } catch (InterruptedException e) {
                                                 e.printStackTrace();
                                             }
@@ -565,10 +602,13 @@ public class GameService extends Service {
                         } else if (
                                 line.contains("hero_growth_newguide")
                                 ) {
-                            Log.d("GameService", "来到庭院 点击对话圈2");
-                            Thread.sleep(1000);
-                            GameUtils.exec("input tap " + 1017.0 / 1440.0 * mWidth + " " + 331.0 / 900.0 * mHeight);
-                            GameUtils.exec("input tap " + 1017.0 / 1440.0 * mWidth + " " + 331.0 / 900.0 * mHeight);
+                            if (!needExit) {
+                                Log.d("GameService", "来到庭院 点击对话圈2");
+                                Thread.sleep(1800);
+                                GameUtils.exec("input tap " + 1017.0 / 1440.0 * mWidth + " " + 331.0 / 900.0 * mHeight);
+                                GameUtils.exec("input tap " + 1017.0 / 1440.0 * mWidth + " " + 331.0 / 900.0 * mHeight);
+                            }
+
                         } else if (
                                 line.contains("openUI: PickCardBasePanel")
                                 ) {
@@ -593,7 +633,6 @@ public class GameService extends Service {
                                     GameUtils.exec("input tap " + 348.0 / 1440.0 * mWidth + " " + 378.0 / 900.0 * mHeight);
                                     break;
                             }
-
                         } else if (
                                 line.contains("first Gambled")
                                 ) {
@@ -684,7 +723,7 @@ public class GameService extends Service {
                                 line.contains("[combat] beginBattle 3 {'isDramaCombat': True, 'pve_data_flag': '30102'}")
                                 ) {
                             Log.d("GameService", "第三个剧情4,看能不能识别出战斗,  点击准备");
-                            Thread.sleep(5000);
+                            Thread.sleep(7000 + sleppTime);
                             GameUtils.exec("input tap " + 1320.0 / 1440.0 * mWidth + " " + 726.0 / 900.0 * mHeight);
 
                             mTwoWarThread = new Thread() {
@@ -1007,14 +1046,24 @@ public class GameService extends Service {
                                     break;
                                 case 5:
                                     Log.d("GameService", "第五次了,准备最后工作,写入帐号信息,");
+                                    //// TODO: 2016/11/6 保存已经刷过的帐号,以免重复登录
+                                    getSharedPreferences("DONE", MODE_PRIVATE).edit().putBoolean(mCurrentAccount + "--" + mCurrentServer, true).apply();
                                     switch (mMode) {
                                         case MainActivity.MODE_ONCE:
                                             Log.d("GameService", "只刷一次模式,什么也不做,返回主页面");
                                             p.destroy();
-                                            String result = mCurrentAccount + "-" + mHeroResult;
-                                            File file = new File(getCacheDir() + "/" + "result.txt");
-                                            BufferedWriter bw = new BufferedWriter(new FileWriter(file));
-                                            bw.append(result);
+
+                                            String result = mCurrentAccount + "--" + mCurrentServer + "--" + mHeroResult;
+                                            File file;
+                                            try {
+                                                file = new File(getCacheDir() + "/" + "result.txt");
+                                                PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(file, true)));
+                                                out.println(result);
+                                                out.close();
+                                            } catch (IOException e) {
+                                                //exception handling left as an exercise for the reader
+                                            }
+                                            stopService(new Intent(getApplicationContext(), MyService.class));
 
                                             Intent intent1 = new Intent(getApplicationContext(), MainActivity.class);
                                             intent1.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -1023,7 +1072,19 @@ public class GameService extends Service {
                                         case MainActivity.MODE_ONLY_ONE_SERVER:
                                             Log.d("GameService", "只刷特定区模式,准备切换帐号");
                                             mAccountTimes++;
-                                            if (mAccountTimes >= accountArr.length) {
+                                            Log.d("GameService", "刷完第" + mAccountTimes + "个帐号");
+
+                                            result = mCurrentAccount + "--" + mCurrentServer + "--" + mHeroResult;
+                                            try {
+                                                file = new File(getCacheDir() + "/" + "result.txt");
+                                                PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(file, true)));
+                                                out.println(result);
+                                                out.close();
+                                            } catch (IOException e) {
+                                                //exception handling left as an exercise for the reader
+                                            }
+
+                                            if (mAccountTimes == accountArr.length) {
                                                 Log.d("GameService", "已刷完全部帐号");
                                                 mChouKaTimes = 0;
                                                 mYardTimes = 0;
@@ -1039,14 +1100,13 @@ public class GameService extends Service {
                                                 Log.d("GameService", "打开头像页面");
                                                 GameUtils.exec("input tap " + 45.0 / 1440.0 * mWidth + " " + 45.0 / 900.0 * mHeight);
                                                 GameUtils.exec("input tap " + 920.0 / 1440.0 * mWidth + " " + 306.0 / 900.0 * mHeight);
+                                                stopService(new Intent(getApplicationContext(), MyService.class));
+
+                                                intent1 = new Intent(getApplicationContext(), MainActivity.class);
+                                                intent1.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                                getApplication().startActivity(intent1);
                                                 return;
                                             }
-                                            result = mCurrentAccount + "--" + mCurrentServer + "--" + mHeroResult;
-                                            file = new File(getCacheDir() + "/" + "result.txt");
-                                            bw = new BufferedWriter(new FileWriter(file));
-                                            bw.append(result);
-                                            bw.flush();
-                                            bw.close();
 
                                             MyService.typeTextTimes = 0;
                                             //写入新的帐号信息
@@ -1064,6 +1124,7 @@ public class GameService extends Service {
                                             mThreeWarRunning = true;
                                             mTwoWarRunning = true;
                                             mOneWarRunning = true;
+                                            mHeroResult = "";
                                             Log.d("GameService", "打开头像页面");
                                             GameUtils.exec("input tap " + 45.0 / 1440.0 * mWidth + " " + 45.0 / 900.0 * mHeight);
                                             GameUtils.exec("input tap " + 920.0 / 1440.0 * mWidth + " " + 306.0 / 900.0 * mHeight);
@@ -1071,9 +1132,25 @@ public class GameService extends Service {
                                         case MainActivity.MODE_ALL:
                                             Log.d("GameService", "全部刷模式,检查是否刷到最后一个区,是否需要切换帐号");
                                             mAccountTimes++;
+
+                                            result = mCurrentAccount + "--" + mCurrentServer + "--" + mHeroResult;
+                                            try {
+                                                file = new File(getCacheDir() + "/" + "result.txt");
+                                                PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(file, true)));
+                                                out.println(result);
+                                                out.close();
+                                            } catch (IOException e) {
+                                                //exception handling left as an exercise for the reader
+                                            }
+
                                             if (mAccountTimes == accountArr.length && mServerTimes == servers.length) {
                                                 Log.d("GameService", "帐号服务器全部刷完");
-                                                return;
+
+                                                stopService(new Intent(getApplicationContext(), MyService.class));
+                                                intent1 = new Intent(getApplicationContext(), MainActivity.class);
+                                                intent1.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                                getApplication().startActivity(intent1);
+                                                continue;
                                             }
                                             if (mAccountTimes == accountArr.length) {
                                                 Log.d("GameService", "帐号全部刷完,换服务器");
@@ -1081,12 +1158,6 @@ public class GameService extends Service {
                                                 mServerTimes++;
                                                 mCurrentServer = servers[mServerTimes];
                                             }
-                                            result = mCurrentAccount + "--" + mCurrentServer + "--" + mHeroResult;
-                                            file = new File(getCacheDir() + "/" + "result.txt");
-                                            bw = new BufferedWriter(new FileWriter(file));
-                                            bw.append(result);
-                                            bw.flush();
-                                            bw.close();
 
                                             MyService.typeTextTimes = 0;
                                             //写入新的帐号信息
@@ -1103,10 +1174,11 @@ public class GameService extends Service {
                                             mThreeWarRunning = true;
                                             mTwoWarRunning = true;
                                             mOneWarRunning = true;
+                                            mHeroResult = "";
                                             Log.d("GameService", "打开头像页面");
                                             GameUtils.exec("input tap " + 45.0 / 1440.0 * mWidth + " " + 45.0 / 900.0 * mHeight);
                                             GameUtils.exec("input tap " + 920.0 / 1440.0 * mWidth + " " + 306.0 / 900.0 * mHeight);
-                                            break;
+                                            return;
                                     }
                                     break;
                             }
@@ -1118,24 +1190,102 @@ public class GameService extends Service {
                             switch (mMailTimes) {
                                 case 1:
                                     Log.d("GameService", "领取抽卡邮箱");
-                                    GameUtils.exec("input tap " + 342.0 / 1440.0 * mWidth + " " + 352.0 / 900.0 * mHeight);
+                                    GameUtils.exec("input tap " + 397.0 / 1440.0 * mWidth + " " + 363.0 / 900.0 * mHeight);
                                     Thread.sleep(500);
                                     Log.d("GameService", "点击领取");
                                     GameUtils.exec("input tap " + 965.0 / 1440.0 * mWidth + " " + 721.0 / 900.0 * mHeight);
                                     Log.d("GameService", "领取抽卡邮箱完成");
+
+                                    GameUtils.exec("input tap " + 965.0 / 1440.0 * mWidth + " " + 721.0 / 900.0 * mHeight);
+
+                                    Thread.sleep(1000);
+                                    Log.d("GameService", "领取抽卡邮箱");
+                                    GameUtils.exec("input tap " + 397.0 / 1440.0 * mWidth + " " + 363.0 / 900.0 * mHeight);
+                                    Thread.sleep(500);
+                                    Log.d("GameService", "点击领取");
+                                    GameUtils.exec("input tap " + 965.0 / 1440.0 * mWidth + " " + 721.0 / 900.0 * mHeight);
+                                    Log.d("GameService", "领取抽卡邮箱完成");
+                                    GameUtils.exec("input tap " + 965.0 / 1440.0 * mWidth + " " + 721.0 / 900.0 * mHeight);
+
+                                    Thread.sleep(500);
+                                    Log.d("GameService", "领取到邮箱奖励");
+                                    GameUtils.exec("input tap " + 965.0 / 1440.0 * mWidth + " " + 721.0 / 900.0 * mHeight);
+                                    GameUtils.exec("input tap " + 1333.0 / 1440.0 * mWidth + " " + 118.0 / 900.0 * mHeight);
+
+                                    Log.d("GameService", "准备抽卡");
+                                    Thread.sleep(500);
+                                    GameUtils.exec("input tap " + 1283.0 / 1440.0 * mWidth + " " + 256.0 / 900.0 * mHeight);
                                     break;
                             }
                         } else if (
                                 line.contains("mail_on_give_items_return")
                                 ) {
-                            Log.d("GameService", "领取到邮箱奖励");
-                            GameUtils.exec("input tap " + 965.0 / 1440.0 * mWidth + " " + 721.0 / 900.0 * mHeight);
-                            GameUtils.exec("input tap " + 1333.0 / 1440.0 * mWidth + " " + 118.0 / 900.0 * mHeight);
+                            mMainGiveTimes++;
+                            switch (mMainGiveTimes) {
+//                                case 1:
+//                                    //以防万一 再领取一次
+//                                    GameUtils.exec("input tap " + 412.0 / 1440.0 * mWidth + " " + 495.0 / 900.0 * mHeight);
+//                                    Thread.sleep(2000);
+//                                    GameUtils.exec("input tap " + 412.0 / 1440.0 * mWidth + " " + 495.0 / 900.0 * mHeight);
+//                                    Thread.sleep(500);
+//                                    Log.d("GameService", "点击领取2");
+//                                    GameUtils.exec("input tap " + 965.0 / 1440.0 * mWidth + " " + 721.0 / 900.0 * mHeight);
+//                                    Log.d("GameService", "领取抽卡邮箱完成2");
+//                                    break;
+                                case 2:
+                                    Log.d("GameService", "领取到邮箱奖励");
+                                    GameUtils.exec("input tap " + 965.0 / 1440.0 * mWidth + " " + 721.0 / 900.0 * mHeight);
+                                    GameUtils.exec("input tap " + 1333.0 / 1440.0 * mWidth + " " + 118.0 / 900.0 * mHeight);
 
-                            Log.d("GameService", "准备抽卡");
-                            Thread.sleep(500);
-                            GameUtils.exec("input tap " + 1283.0 / 1440.0 * mWidth + " " + 256.0 / 900.0 * mHeight);
+                                    Log.d("GameService", "准备抽卡");
+                                    Thread.sleep(500);
+                                    GameUtils.exec("input tap " + 1283.0 / 1440.0 * mWidth + " " + 256.0 / 900.0 * mHeight);
+                                    break;
+                            }
                         }
+//                        else if (
+//                                line.contains("startGuide 202")
+//                                ) {
+//                            needExit = true;
+//                            Log.d("GameService", "已经是抽过卡的帐号了,退出");
+//                            mAccountTimes++;
+//                            if (mAccountTimes == accountArr.length) {
+//                                Log.d("GameService", "帐号全部刷完,换服务器");
+//                                mChouKaTimes = 0;
+//                                mYardTimes = 0;
+//                                mMailTimes = 0;
+//                                mPickTimes = 0;
+//                                mThreeWarThread = null;
+//                                mOneWarThread = null;
+//                                mTwoWarThread = null;
+//                                mThreeWarRunning = true;
+//                                mTwoWarRunning = true;
+//                                mOneWarRunning = true;
+//                                mHeroResult = "";
+//
+//                                mAccountTimes = 0;
+//                                mServerTimes++;
+//                                mCurrentServer = servers[mServerTimes];
+//                            }
+//                            mChouKaTimes = 0;
+//                            mYardTimes = 0;
+//                            mMailTimes = 0;
+//                            mPickTimes = 0;
+//                            mThreeWarThread = null;
+//                            mOneWarThread = null;
+//                            mTwoWarThread = null;
+//                            mThreeWarRunning = true;
+//                            mTwoWarRunning = true;
+//                            mOneWarRunning = true;
+//                            mHeroResult = "";
+//                            MyService.typeTextTimes = 0;
+//                            //写入新的帐号信息
+//                            MyService.mCurrentAccount = accountArr[mAccountTimes];
+//                            mCurrentAccount = accountArr[mAccountTimes];
+//                            getSharedPreferences("Config", MODE_PRIVATE).edit().putString("ACCOUNT", mCurrentAccount).apply();
+//                            GameUtils.exec("input tap " + 45.0 / 1440.0 * mWidth + " " + 45.0 / 900.0 * mHeight);
+//                            GameUtils.exec("input tap " + 920.0 / 1440.0 * mWidth + " " + 306.0 / 900.0 * mHeight);
+//                        }
                     }
                     p.waitFor();
                     Log.d("GameService", "总工作线程结束");

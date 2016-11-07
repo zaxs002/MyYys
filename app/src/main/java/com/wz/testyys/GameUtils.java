@@ -5,6 +5,7 @@ import android.util.DisplayMetrics;
 
 import java.io.DataOutputStream;
 import java.io.File;
+import java.util.Random;
 
 public class GameUtils {
 
@@ -14,6 +15,21 @@ public class GameUtils {
      * @param cmd
      */
     public static void exec(String cmd) {
+        String[] cmdArr = cmd.split(" ");
+        if (cmdArr != null
+                && cmdArr.length == 4
+                && cmd.contains("input tap")) {
+            //随机点击
+            String width = cmdArr[2];
+            String height = cmdArr[3];
+            float i = (float) (new Random().nextFloat() * 8.0);
+            float j = (float) (new Random().nextFloat() * -8.0);
+            float ii = (float) (new Random().nextFloat() * 8.0);
+            float jj = (float) (new Random().nextFloat() * -8.0);
+            float widthF = Float.parseFloat(width);
+            float heightF = Float.parseFloat(height);
+            cmd = "input tap " + (widthF + i + j) + " " + (heightF + ii + jj);
+        }
         RuntimeSingleton.getInstance().exec(cmd);
     }
 
